@@ -222,19 +222,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           newState.activeDocument = null;
           // Move to next document or dismiss client
           if (newState.activeClient) {
-            const nextDocIndex = newState.activeClient.currentDocIndex + 1;
-            if (nextDocIndex < newState.activeClient.documents.length) {
-              newState.activeClient = { ...newState.activeClient, currentDocIndex: nextDocIndex };
-              const nextDoc = newState.activeClient.documents[nextDocIndex];
+            const expClient = newState.activeClient;
+            const nextDocIndex = expClient.currentDocIndex + 1;
+            const nextDoc = expClient.documents[nextDocIndex];
+            if (nextDocIndex < expClient.documents.length && nextDoc) {
               const stepsReduction = hasActivePowerUp(newState, "new-photocopier") ? 1 : 0;
+              newState.activeClient = { ...expClient, currentDocIndex: nextDocIndex };
               newState.activeDocument = {
-                type: nextDoc,
+                type: stepsReduction > 0 ? { ...nextDoc, steps: Math.max(1, nextDoc.steps - stepsReduction) } : nextDoc,
                 stepsCompleted: 0,
                 timeRemaining: nextDoc.timeLimit,
               };
-              if (stepsReduction > 0) {
-                newState.activeDocument.type = { ...nextDoc, steps: Math.max(1, nextDoc.steps - stepsReduction) };
-              }
             } else {
               newState.activeClient = null;
             }
@@ -382,11 +380,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
 
         // Check if client has more documents
-        const nextDocIndex = state.activeClient.currentDocIndex + 1;
-        if (nextDocIndex < state.activeClient.documents.length) {
-          const nextDoc = state.activeClient.documents[nextDocIndex];
+        const client = state.activeClient;
+        const nextDocIndex = client.currentDocIndex + 1;
+        const nextDoc = client.documents[nextDocIndex];
+        if (nextDocIndex < client.documents.length && nextDoc) {
           const stepsReduction = hasActivePowerUp(newState, "new-photocopier") ? 1 : 0;
-          newState.activeClient = { ...state.activeClient, currentDocIndex: nextDocIndex };
+          newState.activeClient = { ...client, currentDocIndex: nextDocIndex };
           newState.activeDocument = {
             type: stepsReduction > 0 ? { ...nextDoc, steps: Math.max(1, nextDoc.steps - stepsReduction) } : nextDoc,
             stepsCompleted: 0,
@@ -425,9 +424,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         activeDocument: {
-          ...doc,
+          type: doc.type,
           stepsCompleted: newSteps,
-          timeRemaining: doc.timeRemaining, // timer keeps running
+          timeRemaining: doc.timeRemaining,
         },
       };
     }
@@ -489,9 +488,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         } else if (event.id === "founder-visit") {
           newState.score = Math.floor(newState.score * 0.8);
         } else if (event.id === "intern-questions" && newState.activeDocument) {
+          const d = newState.activeDocument;
           newState.activeDocument = {
-            ...newState.activeDocument,
-            timeRemaining: newState.activeDocument.timeRemaining - 5,
+            type: d.type,
+            stepsCompleted: d.stepsCompleted,
+            timeRemaining: d.timeRemaining - 5,
           };
         }
       }
