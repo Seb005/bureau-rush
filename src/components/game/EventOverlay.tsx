@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { GameEvent } from "@/engine/events";
 import { FOUNDER_QUESTIONS, INTERN_QUESTIONS } from "@/engine/events";
 
@@ -18,6 +18,10 @@ export default function EventOverlay({
   onEventClick,
 }: EventOverlayProps) {
   const [timeLeft, setTimeLeft] = useState(event.timeLimit);
+  const respondedRef = useRef(false);
+  const onRespondRef = useRef(onRespond);
+  onRespondRef.current = onRespond;
+
   const [quizQuestion] = useState(() => {
     if (event.id === "founder-visit") {
       return FOUNDER_QUESTIONS[Math.floor(Math.random() * FOUNDER_QUESTIONS.length)];
@@ -28,19 +32,30 @@ export default function EventOverlay({
     return null;
   });
 
+  const handleRespond = useCallback((success: boolean) => {
+    if (respondedRef.current) return;
+    respondedRef.current = true;
+    onRespondRef.current(success);
+  }, []);
+
   useEffect(() => {
     if (event.timeLimit <= 0) return;
+    respondedRef.current = false;
+
     const interval = setInterval(() => {
       setTimeLeft((t) => {
-        if (t <= 0.1) {
-          onRespond(false);
+        const next = t - 0.1;
+        if (next <= 0) {
+          clearInterval(interval);
+          // Use setTimeout to avoid calling dispatch during render
+          setTimeout(() => handleRespond(false), 0);
           return 0;
         }
-        return t - 0.1;
+        return next;
       });
     }, 100);
     return () => clearInterval(interval);
-  }, [event.timeLimit, onRespond]);
+  }, [event.id, event.timeLimit, handleRespond]);
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70">
@@ -62,7 +77,7 @@ export default function EventOverlay({
         {/* Phone ringing */}
         {event.id === "phone-ringing" && (
           <button
-            onClick={() => onRespond(true)}
+            onClick={() => handleRespond(true)}
             className="btn-arcade bg-neon-green text-dark border-neon-green text-xs animate-pulse"
           >
             📞 RÉPONDRE
@@ -95,7 +110,7 @@ export default function EventOverlay({
               {quizQuestion.options.map((option, i) => (
                 <button
                   key={i}
-                  onClick={() => onRespond(i === quizQuestion.correct)}
+                  onClick={() => handleRespond(i === quizQuestion.correct)}
                   className="btn-arcade bg-dark text-neon-cyan border-neon-cyan text-[9px] hover:bg-neon-cyan hover:text-dark"
                 >
                   {option}

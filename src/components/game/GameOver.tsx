@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { GameState } from "@/engine/gameState";
 import { getConclusion } from "@/engine/ministryDeductions";
 import { saveGameRecord, saveBadges } from "@/lib/storage";
@@ -14,16 +14,15 @@ interface GameOverProps {
 type SequencePhase = "report" | "stamp" | "deductions" | "final";
 
 export default function GameOver({ state, onReplay, onStartMinistry }: GameOverProps) {
-  const [phase, setPhase] = useState<SequencePhase>(
-    state.phase === "ministrySequence" ? "report" : "report"
-  );
+  const [phase, setPhase] = useState<SequencePhase>("report");
   const [visibleDeductions, setVisibleDeductions] = useState(0);
   const [stampVisible, setStampVisible] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const savedRef = useRef(false);
+  const startedRef = useRef(false);
 
   const saveResults = useCallback(() => {
-    if (saved) return;
-    setSaved(true);
+    if (savedRef.current) return;
+    savedRef.current = true;
     saveGameRecord({
       date: new Date().toISOString(),
       rawScore: state.score,
@@ -40,11 +39,14 @@ export default function GameOver({ state, onReplay, onStartMinistry }: GameOverP
       badges: state.earnedBadges.map((b) => b.id),
     });
     saveBadges(state.earnedBadges.map((b) => b.id));
-  }, [state, saved]);
+  }, [state]);
 
-  // Start the ministry sequence on mount
+  // Start the ministry sequence on mount — deferred to avoid dispatch during render
   useEffect(() => {
-    onStartMinistry();
+    if (startedRef.current) return;
+    startedRef.current = true;
+    const t = setTimeout(() => onStartMinistry(), 0);
+    return () => clearTimeout(t);
   }, [onStartMinistry]);
 
   // Phase progression

@@ -205,13 +205,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       // Update active document timer
       if (newState.activeDocument) {
+        const doc = newState.activeDocument;
         const docSpeedMultiplier = hasActivePowerUp(newState, "strong-coffee") ? 0.5 : 1;
         const networkSlowdown = newState.networkOutageActive ? 2 : 1;
         const effectiveDt = scaledDt * docSpeedMultiplier * networkSlowdown;
 
         newState.activeDocument = {
-          ...newState.activeDocument,
-          timeRemaining: newState.activeDocument.timeRemaining - effectiveDt,
+          type: doc.type,
+          stepsCompleted: doc.stepsCompleted,
+          timeRemaining: doc.timeRemaining - effectiveDt,
         };
 
         if (newState.activeDocument.timeRemaining <= 0) {

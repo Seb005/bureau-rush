@@ -19,10 +19,8 @@ export default function DocumentFiller({
   const timeRatio = document.timeRemaining / document.type.timeLimit;
   const isUrgent = timeRatio < 0.3;
 
-  // Random offset for coffee spill effect
-  const spillOffset = coffeeSpillActive
-    ? { transform: `translate(${Math.sin(Date.now() / 100) * 8}px, ${Math.cos(Date.now() / 130) * 4}px)` }
-    : {};
+  // Coffee spill effect uses CSS animation instead of inline Date.now()
+  const spillClass = coffeeSpillActive ? "animate-[coffeeWobble_0.3s_ease-in-out_infinite]" : "";
 
   return (
     <div className="flex flex-col items-center gap-3 p-4">
@@ -65,14 +63,13 @@ export default function DocumentFiller({
       <button
         onClick={onFillStep}
         disabled={disabled}
-        style={spillOffset}
         className={`
           btn-arcade text-sm py-3 px-8
           ${disabled
             ? "bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed"
             : "bg-neon-green text-dark border-neon-green hover:bg-neon-yellow active:scale-90"
           }
-          ${coffeeSpillActive ? "transition-none" : ""}
+          ${spillClass}
         `}
       >
         REMPLIR
