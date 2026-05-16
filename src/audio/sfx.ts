@@ -18,14 +18,24 @@ function ensureInit() {
 }
 
 function playNote(note: string, duration: string = "16n") {
-  ensureInit();
-  synth?.triggerAttackRelease(note, duration);
+  try {
+    ensureInit();
+    synth?.triggerAttackRelease(note, duration);
+  } catch {
+    // Ignore audio scheduling errors — never crash the game for sound
+  }
 }
 
 function playNotes(notes: string[], interval: number = 100) {
   ensureInit();
   notes.forEach((note, i) => {
-    setTimeout(() => synth?.triggerAttackRelease(note, "16n"), i * interval);
+    setTimeout(() => {
+      try {
+        synth?.triggerAttackRelease(note, "16n");
+      } catch {
+        // Ignore
+      }
+    }, i * interval);
   });
 }
 
@@ -46,7 +56,13 @@ export const SFX = {
     ensureInit();
     const notes = ["A5", "E5", "A5", "E5", "A5", "E5"];
     notes.forEach((note, i) => {
-      setTimeout(() => synth?.triggerAttackRelease(note, "32n"), i * 80);
+      setTimeout(() => {
+        try {
+          synth?.triggerAttackRelease(note, "32n");
+        } catch {
+          // Ignore
+        }
+      }, i * 80);
     });
   },
 
@@ -58,23 +74,37 @@ export const SFX = {
     ensureInit();
     const notes = ["G4", "F#4", "F4", "E4", "Eb4", "D4", "Db4", "C3"];
     notes.forEach((note, i) => {
-      setTimeout(() => synth?.triggerAttackRelease(note, "8n"), i * 150);
+      setTimeout(() => {
+        try {
+          synth?.triggerAttackRelease(note, "8n");
+        } catch {
+          // Ignore
+        }
+      }, i * 150);
     });
   },
 
   sickLeaveActivate() {
-    ensureInit();
-    const lowSynth = new Tone.Synth({
-      oscillator: { type: "sine" },
-      envelope: { attack: 0.3, decay: 1, sustain: 0.2, release: 0.5 },
-    }).toDestination();
-    lowSynth.triggerAttackRelease("C2", "2n");
-    setTimeout(() => lowSynth.dispose(), 3000);
+    try {
+      ensureInit();
+      const lowSynth = new Tone.Synth({
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.3, decay: 1, sustain: 0.2, release: 0.5 },
+      }).toDestination();
+      lowSynth.triggerAttackRelease("C2", "2n");
+      setTimeout(() => lowSynth.dispose(), 3000);
+    } catch {
+      // Ignore
+    }
   },
 
   ministryStamp() {
-    ensureInit();
-    noiseSynth?.triggerAttackRelease("16n");
+    try {
+      ensureInit();
+      noiseSynth?.triggerAttackRelease("16n");
+    } catch {
+      // Ignore
+    }
   },
 
   ministryDeduction() {

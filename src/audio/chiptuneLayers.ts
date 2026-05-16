@@ -47,81 +47,116 @@ function createSynths() {
 }
 
 export function startMusic(level: number = 1) {
-  if (isPlaying) {
-    updateTempo(level);
-    return;
-  }
+  try {
+    if (isPlaying) {
+      updateTempo(level);
+      return;
+    }
 
-  createSynths();
+    // Clean up any leftover state from a previous session
+    cleanupTransport();
 
-  const bpm = Math.min(200, 100 + (level - 1) * 15);
-  Tone.getTransport().bpm.value = bpm;
+    createSynths();
 
-  let bassPatternIndex = 0;
-  let melodyPatternIndex = 0;
+    const bpm = Math.min(200, 100 + (level - 1) * 15);
+    Tone.getTransport().bpm.value = bpm;
 
-  // Bass sequence
-  const flatBass = BASS_PATTERNS.flat();
-  bassLine = new Tone.Sequence(
-    (time, note) => {
-      if (note && bassSynth) {
-        bassSynth.triggerAttackRelease(note, "8n", time);
-      }
-    },
-    flatBass,
-    "8n"
-  ).start(0);
-
-  // Melody sequence
-  const flatMelody = MELODY_PATTERNS.flat();
-  melodyLine = new Tone.Sequence(
-    (time, note) => {
-      if (note && melodySynth) {
-        // Add progressive detuning at higher levels
-        if (level >= 7) {
-          melodySynth.detune.value = Math.random() * 20 - 10;
+    // Bass sequence
+    const flatBass = BASS_PATTERNS.flat();
+    bassLine = new Tone.Sequence(
+      (time, note) => {
+        try {
+          if (note && bassSynth) {
+            bassSynth.triggerAttackRelease(note, "8n", time);
+          }
+        } catch {
+          // Ignore scheduling errors
         }
-        melodySynth.triggerAttackRelease(note, "16n", time);
-      }
-    },
-    flatMelody,
-    "8n"
-  ).start(0);
+      },
+      flatBass,
+      "8n"
+    ).start(0);
 
-  // Percussion
-  percLine = new Tone.Sequence(
-    (time, hit) => {
-      if (hit === "kick" && noiseSynth) {
-        noiseSynth.envelope.decay = 0.08;
-        noiseSynth.triggerAttackRelease("16n", time);
-      } else if (hit === "hat" && noiseSynth) {
-        noiseSynth.envelope.decay = 0.03;
-        noiseSynth.triggerAttackRelease("32n", time);
-      }
-    },
-    PERC_PATTERN,
-    "8n"
-  ).start(0);
+    // Melody sequence
+    const flatMelody = MELODY_PATTERNS.flat();
+    melodyLine = new Tone.Sequence(
+      (time, note) => {
+        try {
+          if (note && melodySynth) {
+            if (level >= 7) {
+              melodySynth.detune.value = Math.random() * 20 - 10;
+            }
+            melodySynth.triggerAttackRelease(note, "16n", time);
+          }
+        } catch {
+          // Ignore scheduling errors
+        }
+      },
+      flatMelody,
+      "8n"
+    ).start(0);
 
-  Tone.getTransport().start();
-  isPlaying = true;
+    // Percussion
+    percLine = new Tone.Sequence(
+      (time, hit) => {
+        try {
+          if (hit === "kick" && noiseSynth) {
+            noiseSynth.envelope.decay = 0.08;
+            noiseSynth.triggerAttackRelease("16n", time);
+          } else if (hit === "hat" && noiseSynth) {
+            noiseSynth.envelope.decay = 0.03;
+            noiseSynth.triggerAttackRelease("32n", time);
+          }
+        } catch {
+          // Ignore scheduling errors
+        }
+      },
+      PERC_PATTERN,
+      "8n"
+    ).start(0);
+
+    Tone.getTransport().start();
+    isPlaying = true;
+  } catch {
+    // If music fails to start, continue silently
+    isPlaying = false;
+  }
 }
 
 export function updateTempo(level: number) {
-  const bpm = Math.min(200, 100 + (level - 1) * 15);
-  Tone.getTransport().bpm.rampTo(bpm, 2);
+  try {
+    const bpm = Math.min(200, 100 + (level - 1) * 15);
+    Tone.getTransport().bpm.rampTo(bpm, 2);
+  } catch {
+    // Ignore
+  }
 }
 
 export function pauseMusic() {
-  Tone.getTransport().pause();
+  try {
+    Tone.getTransport().pause();
+  } catch {
+    // Ignore
+  }
 }
 
 export function resumeMusic() {
-  Tone.getTransport().start();
+  try {
+    // Use the "+" prefix to schedule relative to "now" — avoids the
+    // "start time must be strictly greater than previous start time" error
+    Tone.getTransport().start("+0.05");
+  } catch {
+    // Ignore
+  }
 }
 
-export function stopMusic() {
-  Tone.getTransport().stop();
+function cleanupTransport() {
+  try {
+    Tone.getTransport().stop();
+    Tone.getTransport().cancel();
+  } catch {
+    // Ignore
+  }
   bassLine?.dispose();
   melodyLine?.dispose();
   percLine?.dispose();
@@ -134,5 +169,9 @@ export function stopMusic() {
   bassSynth = null;
   melodySynth = null;
   noiseSynth = null;
+}
+
+export function stopMusic() {
+  cleanupTransport();
   isPlaying = false;
 }
