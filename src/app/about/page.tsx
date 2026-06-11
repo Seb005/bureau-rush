@@ -10,12 +10,12 @@ export default function AboutPage() {
         <div className="text-[10px] leading-relaxed text-gray-300 space-y-4">
           <p>
             <span className="text-neon-green">BUREAU RUSH</span> est un jeu
-            arcade rétro où tu incarnes un conseiller en emploi dans un
-            Carrefour Jeunesse-Emploi du Québec.
+            arcade rétro inspiré de la vie dans les organismes soumis au
+            «joug du ministère». Lesquels? On ne le dira pas.
           </p>
           <p>
             Les clients arrivent, les documents s&apos;empilent, le téléphone
-            sonne, et le gouvernement veut des rapports. Le rythme accélère.
+            sonne, et le ministère veut des rapports. Le rythme accélère.
             Tu dois survivre à la bureaucratie sans faire de burnout.
           </p>
           <p className="text-neon-pink">
@@ -23,9 +23,7 @@ export default function AboutPage() {
             jeu.
           </p>
           <p className="mt-8 text-gray-500">
-            Concept et direction: Sébastien Bélisle
-            <br />
-            Développement: Kodra Conseil s.e.n.c.
+            Concept et développement: Sébas
           </p>
         </div>
         <Link

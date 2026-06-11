@@ -9,13 +9,40 @@ interface WaitingRoomProps {
   disabled: boolean;
 }
 
+function PixelChair({ occupied }: { occupied: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 14 10"
+      width={64}
+      height={45}
+      className="absolute bottom-0 left-1/2 -translate-x-1/2"
+      shapeRendering="crispEdges"
+      aria-hidden
+    >
+      {/* Backrest only visible on empty chairs */}
+      {!occupied && (
+        <>
+          <rect x="3" y="0" width="8" height="1" fill="#37474F" />
+          <rect x="3" y="1" width="1" height="3" fill="#37474F" />
+          <rect x="10" y="1" width="1" height="3" fill="#37474F" />
+          <rect x="4" y="1" width="6" height="3" fill="#2c3a45" />
+        </>
+      )}
+      <rect x="1" y="4" width="12" height="2" fill="#455A64" />
+      <rect x="2" y="6" width="1.5" height="4" fill="#263238" />
+      <rect x="10.5" y="6" width="1.5" height="4" fill="#263238" />
+    </svg>
+  );
+}
+
 export default function WaitingRoom({ clients, onSelectClient, disabled }: WaitingRoomProps) {
   return (
-    <div className="flex items-end gap-2 justify-center p-2 min-h-[100px]">
+    <div className="flex items-end gap-3 sm:gap-5 justify-center p-2 pb-1 min-h-[150px]">
       {clients.map((client) => {
         const patienceRatio = client.patience / client.maxPatience;
         const isImpatient = patienceRatio < 0.3;
         const isUrgent = patienceRatio < 0.15;
+        const request = client.requests[client.currentDocIndex];
 
         return (
           <button
@@ -23,20 +50,37 @@ export default function WaitingRoom({ clients, onSelectClient, disabled }: Waiti
             onClick={() => !disabled && onSelectClient(client.id)}
             disabled={disabled}
             className={`
-              flex flex-col items-center gap-1 p-1 rounded transition-all
+              relative flex flex-col items-center gap-1 p-1 pt-4 rounded transition-all
               ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-white/10 active:scale-95"}
               ${isUrgent ? "animate-pulse" : ""}
             `}
           >
-            <PixelAvatar
-              seed={client.seed}
-              size={40}
-              animated={isImpatient ? "fidget" : "sway"}
-              className={isImpatient ? "hue-rotate-[340deg] saturate-150" : ""}
-            />
+            {/* Speech bubble: the client's request */}
+            <div
+              className={`
+                absolute -top-2 left-1/2 -translate-x-1/2 z-10
+                bg-white text-dark rounded px-1.5 py-1 text-base leading-none
+                ${client.isGhost ? "opacity-60" : ""}
+              `}
+            >
+              {client.isGhost && client.ghostTimer < 2.5 ? "👻" : request?.icon}
+              <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45" />
+            </div>
+
+            <div className="relative w-16 h-20 flex items-end justify-center">
+              <PixelChair occupied />
+              <PixelAvatar
+                seed={client.seed}
+                size={64}
+                animated={isImpatient ? "fidget" : "sway"}
+                mood={isUrgent ? "angry" : isImpatient ? "impatient" : "happy"}
+                ghost={client.isGhost}
+                className="relative z-[1]"
+              />
+            </div>
 
             {/* Patience bar */}
-            <div className="w-10 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+            <div className="w-14 h-2 bg-gray-700 rounded-full overflow-hidden">
               <div
                 className={`h-full transition-all duration-200 rounded-full ${
                   patienceRatio > 0.5
@@ -50,7 +94,7 @@ export default function WaitingRoom({ clients, onSelectClient, disabled }: Waiti
             </div>
 
             {/* Document icons */}
-            <div className="flex gap-0.5 text-[8px]">
+            <div className="flex gap-0.5 text-[11px]">
               {client.documents.map((doc, i) => (
                 <span
                   key={i}
@@ -64,13 +108,13 @@ export default function WaitingRoom({ clients, onSelectClient, disabled }: Waiti
         );
       })}
 
-      {/* Empty slots */}
+      {/* Empty chairs */}
       {[...Array(Math.max(0, 5 - clients.length))].map((_, i) => (
         <div
           key={`empty-${i}`}
-          className="w-12 h-16 border border-dashed border-gray-700/30 rounded flex items-center justify-center"
+          className="relative w-16 h-[122px] flex items-end justify-center opacity-60"
         >
-          <span className="text-gray-700/30 text-xs">·</span>
+          <PixelChair occupied={false} />
         </div>
       ))}
     </div>

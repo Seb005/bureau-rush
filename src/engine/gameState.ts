@@ -5,6 +5,14 @@ import { generateMinistryDeductions, type MinistryDeduction } from "./ministryDe
 import { checkBadges, type Badge } from "./badges";
 import { type GameEvent, shouldTriggerEvent, EVENT_TYPES } from "./events";
 import { type PowerUp, shouldSpawnPowerUp, POWER_UP_TYPES } from "./powerUps";
+import {
+  type MinistryRush,
+  MINISTRY_RUSH_INFO,
+  shouldStartRush,
+  createRush,
+  rushReward,
+  RUSH_FAIL_PENALTY,
+} from "./ministryRush";
 
 export type GamePhase = "menu" | "playing" | "paused" | "sickLeave" | "event" | "gameOver" | "ministrySequence";
 
@@ -19,6 +27,13 @@ export interface ActivePowerUp {
   timeRemaining: number;
 }
 
+export interface Toast {
+  id: number;
+  icon: string;
+  text: string;
+  ttl: number; // seconds remaining on screen
+}
+
 export interface GameState {
   phase: GamePhase;
   score: number;
@@ -29,6 +44,7 @@ export interface GameState {
   clientsServed: number;
   clientsServedThisLevel: number;
   clientsLost: number;
+  wrongServiceClicks: number;
   waitingClients: Client[];
   activeClient: Client | null;
   activeDocument: ActiveDocument | null;
@@ -46,6 +62,10 @@ export interface GameState {
   // Power-ups
   activePowerUps: ActivePowerUp[];
   pendingPowerUp: PowerUp | null;
+  // Ministry rush periods
+  ministryRush: MinistryRush | null;
+  // Toast notifications
+  toasts: Toast[];
   // Game over
   ministryDeductions: MinistryDeduction[];
   finalScore: number;
@@ -68,7 +88,8 @@ export type GameAction =
   | { type: "START_GAME" }
   | { type: "TICK"; deltaSeconds: number }
   | { type: "SELECT_CLIENT"; clientId: string }
-  | { type: "FILL_STEP" }
+  | { type: "SERVE_ACTION"; serviceId: string }
+  | { type: "RUSH_CLICK" }
   | { type: "USE_SICK_LEAVE" }
   | { type: "END_SICK_LEAVE" }
   | { type: "COLLECT_POWER_UP" }
@@ -89,6 +110,7 @@ export const INITIAL_STATE: GameState = {
   clientsServed: 0,
   clientsServedThisLevel: 0,
   clientsLost: 0,
+  wrongServiceClicks: 0,
   waitingClients: [],
   activeClient: null,
   activeDocument: null,
@@ -104,6 +126,8 @@ export const INITIAL_STATE: GameState = {
   eventClickCount: 0,
   activePowerUps: [],
   pendingPowerUp: null,
+  ministryRush: null,
+  toasts: [],
   ministryDeductions: [],
   finalScore: 0,
   earnedBadges: [],
@@ -117,6 +141,18 @@ export const INITIAL_STATE: GameState = {
   networkOutageTimer: 0,
 };
 
+// Penalty (seconds) on the document timer when the wrong service button is pressed
+const WRONG_SERVICE_TIME_PENALTY = 0.8;
+
+let toastCounter = 0;
+
+function addToast(state: GameState, icon: string, text: string, ttl = 3.5): GameState {
+  toastCounter++;
+  const toasts = [...state.toasts, { id: toastCounter, icon, text, ttl }];
+  // Keep at most 3 toasts on screen
+  return { ...state, toasts: toasts.slice(-3) };
+}
+
 function getComboMultiplier(combo: number): number {
   if (combo >= 10) return 5;
   if (combo >= 8) return 4;
@@ -127,6 +163,15 @@ function getComboMultiplier(combo: number): number {
 
 function hasActivePowerUp(state: GameState, id: string): boolean {
   return state.activePowerUps.some((ap) => ap.powerUp.id === id);
+}
+
+function triggerGameOver(state: GameState): GameState {
+  const newState = { ...state, phase: "gameOver" as GamePhase };
+  const deductions = generateMinistryDeductions(newState.score, newState.level);
+  newState.ministryDeductions = deductions;
+  newState.finalScore = Math.max(0, deductions.reduce((score, d) => score - d.amount, newState.score));
+  newState.earnedBadges = checkBadges(newState);
+  return newState;
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -198,10 +243,42 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
 
+      // Toast lifetimes
+      if (newState.toasts.length > 0) {
+        newState.toasts = newState.toasts
+          .map((t) => ({ ...t, ttl: t.ttl - dt }))
+          .filter((t) => t.ttl > 0);
+      }
+
+      // Ministry rush deadline
+      if (newState.ministryRush) {
+        const rush = { ...newState.ministryRush, timeRemaining: newState.ministryRush.timeRemaining - dt };
+        if (rush.timeRemaining <= 0) {
+          const info = MINISTRY_RUSH_INFO[rush.kind];
+          newState.ministryRush = null;
+          newState.score = Math.floor(newState.score * (1 - RUSH_FAIL_PENALTY));
+          newState = addToast(newState, info.icon, info.failMessage);
+        } else {
+          newState.ministryRush = rush;
+        }
+      }
+
       // Update power-up timers
       newState.activePowerUps = newState.activePowerUps
         .map((ap) => ({ ...ap, timeRemaining: ap.timeRemaining - dt }))
         .filter((ap) => ap.timeRemaining > 0);
+
+      // Ghost client at the desk vanishes mid-meeting
+      if (newState.activeClient?.isGhost) {
+        const ghost = { ...newState.activeClient, ghostTimer: newState.activeClient.ghostTimer - scaledDt };
+        if (ghost.ghostTimer <= 0) {
+          newState.activeClient = null;
+          newState.activeDocument = null;
+          newState = addToast(newState, "👻", "Votre client s'est volatilisé en pleine rencontre!");
+        } else {
+          newState.activeClient = ghost;
+        }
+      }
 
       // Update active document timer
       if (newState.activeDocument) {
@@ -240,6 +317,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
 
+      // Ghost clients in the waiting room vanish into thin air (no life lost)
+      let ghostVanished = false;
+      const afterGhosts: Client[] = [];
+      for (const client of newState.waitingClients) {
+        if (client.isGhost) {
+          const newGhostTimer = client.ghostTimer - scaledDt;
+          if (newGhostTimer <= 0) {
+            ghostVanished = true;
+            continue;
+          }
+          afterGhosts.push({ ...client, ghostTimer: newGhostTimer });
+        } else {
+          afterGhosts.push(client);
+        }
+      }
+      newState.waitingClients = afterGhosts;
+      if (ghostVanished) {
+        newState = addToast(newState, "👻", "Un client a disparu comme par magie...");
+      }
+
       // Update client patience
       const patienceMultiplier = hasActivePowerUp(newState, "motivational-playlist") ? 0.5 : 1;
       const updatedClients: Client[] = [];
@@ -259,12 +356,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         newState.lives--;
         newState.combo = 0;
         if (newState.lives <= 0) {
-          newState.phase = "gameOver";
-          const deductions = generateMinistryDeductions(newState.score, newState.level);
-          newState.ministryDeductions = deductions;
-          newState.finalScore = Math.max(0, deductions.reduce((score, d) => score - d.amount, newState.score));
-          newState.earnedBadges = checkBadges(newState);
-          return newState;
+          return triggerGameOver(newState);
         }
       }
 
@@ -297,6 +389,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           } else if (event.id === "coffee-spill") {
             newState.coffeeSpillActive = true;
             newState.coffeeSpillTimer = 5;
+            newState.eventCooldown = 15;
+          } else if (event.id === "office-error") {
+            // Misfiled folder: lose up to 2 completed steps on the active document
+            if (newState.activeDocument && newState.activeDocument.stepsCompleted > 0) {
+              newState.activeDocument = {
+                ...newState.activeDocument,
+                stepsCompleted: Math.max(0, newState.activeDocument.stepsCompleted - 2),
+              };
+              newState = addToast(newState, "📁", "Erreur de classement! On recommence ces sections...");
+            }
             newState.eventCooldown = 15;
           } else {
             newState.activeEvent = event;
@@ -340,9 +442,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case "FILL_STEP": {
+    case "SERVE_ACTION": {
       if (state.phase !== "playing" || !state.activeDocument || !state.activeClient) return state;
       if (state.meetingBlockActive) return state;
+
+      const client = state.activeClient;
+      const expectedService = client.requests[client.currentDocIndex];
+
+      // Wrong service button: the client glares, the timer takes a hit
+      if (!expectedService || action.serviceId !== expectedService.id) {
+        return {
+          ...state,
+          wrongServiceClicks: state.wrongServiceClicks + 1,
+          activeDocument: {
+            ...state.activeDocument,
+            timeRemaining: state.activeDocument.timeRemaining - WRONG_SERVICE_TIME_PENALTY,
+          },
+        };
+      }
 
       const doc = state.activeDocument;
       const newSteps = doc.stepsCompleted + 1;
@@ -380,7 +497,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
 
         // Check if client has more documents
-        const client = state.activeClient;
         const nextDocIndex = client.currentDocIndex + 1;
         const nextDoc = client.documents[nextDocIndex];
         if (nextDocIndex < client.documents.length && nextDoc) {
@@ -406,6 +522,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             newState.showLevelBanner = true;
             newState.levelBannerTimer = 2;
 
+            // Ministry rush periods on even levels from 4 up
+            if (shouldStartRush(newState.level) && !newState.ministryRush) {
+              newState.ministryRush = createRush(newState.level);
+            }
+
             // Turbo Wi-Fi every 3 levels
             if (newState.level % 3 === 0) {
               // Add 3 seconds to all waiting clients' patience
@@ -429,6 +550,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           timeRemaining: doc.timeRemaining,
         },
       };
+    }
+
+    case "RUSH_CLICK": {
+      if (state.phase !== "playing" || !state.ministryRush) return state;
+      const rush = state.ministryRush;
+      const newStepsDone = rush.stepsDone + 1;
+
+      if (newStepsDone >= rush.stepsRequired) {
+        const info = MINISTRY_RUSH_INFO[rush.kind];
+        const reward = rushReward(state.level);
+        let newState: GameState = {
+          ...state,
+          ministryRush: null,
+          score: state.score + reward,
+        };
+        newState = addToast(newState, info.icon, `${info.successMessage} +${reward} pts`);
+        return newState;
+      }
+
+      return { ...state, ministryRush: { ...rush, stepsDone: newStepsDone } };
     }
 
     case "USE_SICK_LEAVE": {
@@ -469,21 +610,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case "RESPOND_EVENT": {
       if (!state.activeEvent) return state;
       const event = state.activeEvent;
-      let newState = { ...state, activeEvent: null };
+      let newState: GameState = { ...state, activeEvent: null };
 
       if (action.success) {
         if (event.id === "intern-questions") {
           newState.score += 15;
+        } else if (event.id === "angry-parent") {
+          newState.score += 15;
+          newState = addToast(newState, "😌", "Le parent est calmé. Ouf.");
+        } else if (event.id === "donation-call") {
+          newState.score += 50;
+          newState = addToast(newState, "💝", "Un don pour payer les salaires! +50 pts");
         }
       } else {
         if (event.id === "phone-ringing") {
           newState.lives--;
           if (newState.lives <= 0) {
-            newState.phase = "gameOver";
-            const deductions = generateMinistryDeductions(newState.score, newState.level);
-            newState.ministryDeductions = deductions;
-            newState.finalScore = Math.max(0, deductions.reduce((s, d) => s - d.amount, newState.score));
-            newState.earnedBadges = checkBadges(newState);
+            return triggerGameOver(newState);
           }
         } else if (event.id === "founder-visit") {
           newState.score = Math.floor(newState.score * 0.8);
@@ -494,6 +637,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             stepsCompleted: d.stepsCompleted,
             timeRemaining: d.timeRemaining - 5,
           };
+        } else if (event.id === "angry-parent") {
+          // The angry parent rants — everyone in the waiting room loses patience
+          newState.waitingClients = newState.waitingClients.map((c) => ({
+            ...c,
+            patience: Math.max(0.5, c.patience - 3),
+          }));
+          newState = addToast(newState, "😠", "Le parent crie... toute la salle s'impatiente!");
+        } else if (event.id === "donation-call") {
+          newState = addToast(newState, "📵", "Le donateur a raccroché. Tant pis.");
         }
       }
 

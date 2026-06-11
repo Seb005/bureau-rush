@@ -9,7 +9,11 @@ import DocumentFiller from "./DocumentFiller";
 import SickLeaveButton from "./SickLeaveButton";
 import EventOverlay from "./EventOverlay";
 import GameOver from "./GameOver";
+import MinistryRushPanel from "./MinistryRushPanel";
+import Toasts from "./Toasts";
+import OfficeBackdrop from "./OfficeBackdrop";
 import PixelAvatar from "@/components/avatar/PixelAvatar";
+import ConseillereSprite from "@/components/avatar/ConseillereSprite";
 
 // Lazy-load audio modules
 let audioImported = false;
@@ -39,6 +43,8 @@ export default function GameEngine() {
   const prevLevelRef = useRef(1);
   const prevLivesRef = useRef(3);
   const prevComboRef = useRef(0);
+  const prevRushRef = useRef(false);
+  const prevToastIdRef = useRef(0);
   const [muted, setMuted] = useState(false);
 
   // Audio effects based on state changes
@@ -81,11 +87,27 @@ export default function GameEngine() {
       SFX?.comboUp();
     }
 
+    // Ministry rush kicks in
+    const rushActive = !!state.ministryRush;
+    if (rushActive && !prevRushRef.current) {
+      SFX?.rushAlarm();
+    }
+    prevRushRef.current = rushActive;
+
     prevPhaseRef.current = state.phase;
     prevLevelRef.current = state.level;
     prevLivesRef.current = state.lives;
     prevComboRef.current = state.combo;
-  }, [state.phase, state.level, state.lives, state.combo]);
+  }, [state.phase, state.level, state.lives, state.combo, state.ministryRush]);
+
+  // Toast-driven sounds (ghost poof, donations)
+  useEffect(() => {
+    const latest = state.toasts[state.toasts.length - 1];
+    if (!latest || latest.id <= prevToastIdRef.current) return;
+    prevToastIdRef.current = latest.id;
+    if (latest.icon === "👻") SFX?.ghostPoof();
+    else if (latest.icon === "💝") SFX?.cashIn();
+  }, [state.toasts]);
 
   // Game loop
   useEffect(() => {
@@ -154,9 +176,18 @@ export default function GameEngine() {
     dispatch({ type: "START_GAME" });
   }, []);
 
-  const handleFillStep = useCallback(() => {
+  const handleServeAction = useCallback((serviceId: string, correct: boolean) => {
+    if (correct) {
+      SFX?.buttonClick();
+    } else {
+      SFX?.wrongAction();
+    }
+    dispatch({ type: "SERVE_ACTION", serviceId });
+  }, []);
+
+  const handleRushClick = useCallback(() => {
     SFX?.buttonClick();
-    dispatch({ type: "FILL_STEP" });
+    dispatch({ type: "RUSH_CLICK" });
   }, []);
 
   const handleToggleMute = useCallback(() => {
@@ -174,7 +205,7 @@ export default function GameEngine() {
         <p className="text-[9px] text-neon-cyan mb-2">La folie de l&apos;employabilité</p>
         <p className="text-[8px] text-gray-400 mb-8 max-w-xs text-center">
           Les clients arrivent, les documents s&apos;empilent.
-          <br />Survie à la bureaucratie!
+          <br />Servez le bon service, survivez à la bureaucratie!
         </p>
         <button
           onClick={handleStartGame}
@@ -213,6 +244,9 @@ export default function GameEngine() {
       >
         {muted ? "🔇" : "🔊"}
       </button>
+
+      {/* Toast notifications */}
+      <Toasts toasts={state.toasts} />
 
       {/* Level banner */}
       {state.showLevelBanner && (
@@ -257,19 +291,13 @@ export default function GameEngine() {
       )}
 
       {/* Main game area */}
-      <div className="flex-1 flex flex-col relative"
-        style={{
-          backgroundImage: "url(/bureau-bg.png)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        {/* Dark overlay on the background for readability */}
-        <div className="absolute inset-0 bg-black/40" />
+      <div className="flex-1 flex flex-col relative overflow-hidden">
+        {/* Pixel-art office scene */}
+        <OfficeBackdrop />
 
         <div className="relative z-10 flex-1 flex flex-col">
           {/* Waiting room */}
-          <div className="bg-black/50 backdrop-blur-sm">
+          <div className="bg-black/40 backdrop-blur-[2px]">
             <div className="text-[8px] text-gray-400 text-center pt-1">SALLE D&apos;ATTENTE</div>
             <WaitingRoom
               clients={state.waitingClients}
@@ -281,27 +309,52 @@ export default function GameEngine() {
             />
           </div>
 
+          {/* Ministry rush panel */}
+          {state.ministryRush && (
+            <MinistryRushPanel
+              rush={state.ministryRush}
+              onRushClick={handleRushClick}
+              disabled={!isPlaying}
+            />
+          )}
+
           {/* Desk area */}
-          <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <div className="flex-1 flex items-center justify-center gap-2 p-2 min-h-0">
+            {/* The conseillère at her desk */}
+            <div className="hidden md:block shrink-0 self-end pb-2">
+              <ConseillereSprite
+                size={170}
+                typing={isPlaying && !!state.activeClient}
+                resting={isSickLeave}
+              />
+            </div>
+
             {state.activeClient && state.activeDocument ? (
-              <div className="bg-black/60 backdrop-blur-sm rounded-lg p-4 border border-neon-cyan/20">
+              <div className="bg-black/60 backdrop-blur-sm rounded-lg p-3 border border-neon-cyan/20 w-full max-w-[540px] max-h-full overflow-y-auto">
                 {/* Client being served */}
-                <div className="flex items-center gap-3 mb-3">
-                  <PixelAvatar seed={state.activeClient.seed} size={36} animated="none" />
-                  <div className="text-[9px] text-gray-300">
+                <div className="flex items-center gap-3 mb-1 justify-center">
+                  <PixelAvatar
+                    seed={state.activeClient.seed}
+                    size={52}
+                    animated="none"
+                    ghost={state.activeClient.isGhost}
+                  />
+                  <div className="text-[11px] text-gray-300">
                     Doc {state.activeClient.currentDocIndex + 1}/{state.activeClient.documents.length}
                   </div>
                 </div>
 
                 <DocumentFiller
                   document={state.activeDocument}
-                  onFillStep={handleFillStep}
+                  client={state.activeClient}
+                  level={state.level}
+                  onServeAction={handleServeAction}
                   coffeeSpillActive={state.coffeeSpillActive}
                   disabled={!isPlaying || state.meetingBlockActive}
                 />
               </div>
             ) : (
-              <div className="text-gray-500 text-[10px] text-center">
+              <div className="text-gray-400 text-[10px] text-center bg-black/40 rounded-lg px-4 py-3">
                 {state.meetingBlockActive
                   ? "🗓️ En réunion..."
                   : "Cliquez sur un client pour le servir"}
@@ -310,7 +363,7 @@ export default function GameEngine() {
           </div>
 
           {/* Sick leave button */}
-          <div className="flex justify-center pb-4">
+          <div className="flex justify-center pb-3">
             <SickLeaveButton
               remaining={state.sickLeavesRemaining}
               cooldown={state.sickLeaveCooldown}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { GameEvent } from "@/engine/events";
-import { FOUNDER_QUESTIONS, INTERN_QUESTIONS } from "@/engine/events";
+import { FOUNDER_QUESTIONS, INTERN_QUESTIONS, ANGRY_PARENT_QUESTIONS } from "@/engine/events";
 
 interface EventOverlayProps {
   event: GameEvent;
@@ -28,6 +28,9 @@ export default function EventOverlay({
     }
     if (event.id === "intern-questions") {
       return INTERN_QUESTIONS[Math.floor(Math.random() * INTERN_QUESTIONS.length)];
+    }
+    if (event.id === "angry-parent") {
+      return ANGRY_PARENT_QUESTIONS[Math.floor(Math.random() * ANGRY_PARENT_QUESTIONS.length)];
     }
     return null;
   });
@@ -81,6 +84,16 @@ export default function EventOverlay({
             className="btn-arcade bg-neon-green text-dark border-neon-green text-xs animate-pulse"
           >
             📞 RÉPONDRE
+          </button>
+        )}
+
+        {/* Donation call: answer before they hang up */}
+        {event.id === "donation-call" && (
+          <button
+            onClick={() => handleRespond(true)}
+            className="btn-arcade bg-neon-pink text-dark border-neon-pink text-xs animate-pulse"
+          >
+            💝 ACCEPTER LE DON
           </button>
         )}
 

@@ -25,6 +25,10 @@ body {
   padding: 0;
   overflow-x: hidden;
   min-height: 100vh;
+  /* Arcade game: rapid clicking must never start a text selection */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* CRT Scanlines Overlay */
@@ -132,6 +136,77 @@ body {
 @keyframes pulse-glow {
   0%, 100% { opacity: 0.8; }
   50% { opacity: 1; }
+}
+
+/* Wrong service button: quick angry shake */
+@keyframes wrong-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+.animate-wrong-shake {
+  animation: wrong-shake 0.25s ease-in-out;
+}
+
+/* Ghost clients hover eerily */
+@keyframes ghost-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.animate-ghost-float {
+  animation: ghost-float 1.2s ease-in-out infinite;
+}
+
+/* Conseillère typing: head bobs, arms hammer the keyboard */
+@keyframes typing-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(0.4px); }
+}
+
+.animate-typing {
+  animation: typing-bob 0.2s ease-in-out infinite;
+}
+
+@keyframes arm-tap-left {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(0.6px); }
+}
+
+@keyframes arm-tap-right {
+  0%, 100% { transform: translateY(0.6px); }
+  50% { transform: translateY(0); }
+}
+
+.animate-arm-left {
+  animation: arm-tap-left 0.16s linear infinite;
+}
+
+.animate-arm-right {
+  animation: arm-tap-right 0.16s linear infinite;
+}
+
+/* Ministry rush panel pulses red when the deadline closes in */
+@keyframes rush-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 60, 60, 0.4); }
+  50% { box-shadow: 0 0 24px rgba(255, 60, 60, 0.9); }
+}
+
+.animate-rush-pulse {
+  animation: rush-pulse 0.5s ease-in-out infinite;
+}
+
+/* Toast slide-in */
+@keyframes toast-in {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.25s ease-out;
 }
 
 /* Reduced motion support */

@@ -35,7 +35,7 @@ export default function Home() {
         </div>
 
         <p className="mt-12 text-[8px] text-gray-500">
-          Kodra Conseil s.e.n.c. — 2026
+          Sébas — 2026
         </p>
       </main>
     </div>

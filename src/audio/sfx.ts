@@ -118,4 +118,47 @@ export const SFX = {
   powerUp() {
     playNotes(["C5", "E5", "G5"], 60);
   },
+
+  wrongAction() {
+    // Harsh low buzz: you pressed the wrong service button
+    try {
+      ensureInit();
+      const buzz = new Tone.Synth({
+        oscillator: { type: "sawtooth" },
+        envelope: { attack: 0.005, decay: 0.12, sustain: 0, release: 0.05 },
+      }).toDestination();
+      buzz.volume.value = -8;
+      buzz.triggerAttackRelease("A2", "16n");
+      setTimeout(() => buzz.dispose(), 500);
+    } catch {
+      // Ignore
+    }
+  },
+
+  ghostPoof() {
+    // Eerie descending glide: a client vanished into thin air
+    try {
+      ensureInit();
+      const ghost = new Tone.Synth({
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.02, decay: 0.4, sustain: 0, release: 0.2 },
+      }).toDestination();
+      ghost.volume.value = -6;
+      ghost.triggerAttackRelease("A5", "8n");
+      ghost.frequency.rampTo("A3", 0.4);
+      setTimeout(() => ghost.dispose(), 1000);
+    } catch {
+      // Ignore
+    }
+  },
+
+  rushAlarm() {
+    // Two urgent high beeps: the ministry wants its numbers
+    playNotes(["G5", "G5", "C6"], 130);
+  },
+
+  cashIn() {
+    // Coins! A donation came through
+    playNotes(["E6", "G6", "C7"], 50);
+  },
 };

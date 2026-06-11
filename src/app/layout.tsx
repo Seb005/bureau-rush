@@ -11,7 +11,7 @@ const pixelFont = Press_Start_2P({
 export const metadata: Metadata = {
   title: "Bureau Rush — La folie de l'employabilité",
   description:
-    "Jeu arcade rétro où tu incarnes un conseiller en emploi dans un CJE du Québec. Survis à la bureaucratie!",
+    "Jeu arcade rétro inspiré de la vie dans les organismes soumis au joug du ministère. Survis à la bureaucratie!",
   openGraph: {
     title: "Bureau Rush — La folie de l'employabilité",
     description:
@@ -27,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <body className={`${pixelFont.variable} antialiased`}>
+      <body className={`${pixelFont.variable} antialiased select-none`}>
         {/* CRT scanlines overlay */}
         <div className="crt-overlay" aria-hidden="true" />
         {children}

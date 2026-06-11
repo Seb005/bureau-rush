@@ -177,6 +177,21 @@ export default function GameOver({ state, onReplay, onStartMinistry }: GameOverP
             >
               REJOUER (DÉFIE LE MINISTÈRE)
             </button>
+
+            {/* Buy me a coffee */}
+            <div className="pt-2">
+              <a
+                href="https://buymeacoffee.com/sbelisle"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-arcade inline-block bg-neon-yellow text-dark border-neon-yellow hover:bg-yellow-300 text-[9px]"
+              >
+                ☕ PAYE-MOI UN CAFÉ
+              </a>
+              <p className="text-[7px] text-gray-500 mt-2">
+                La conseillère carbure au café. Le ministère, lui, carbure à tes rapports.
+              </p>
+            </div>
           </div>
         )}
       </div>
